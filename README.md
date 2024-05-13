@@ -1,0 +1,1 @@
+Provisoner stage meant for outer nodes
