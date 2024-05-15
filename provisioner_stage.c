@@ -286,6 +286,10 @@ int provisioner_search_for_unprovisioned_devices(){
 		addr_idx++;
 	}
 
+	if (!addr_idx){
+		return 0;
+	}
+
 	uint16_t remaining_address_count = provisioning_address_range_end - current_node_address;	
 
 	if (!remaining_address_count){
