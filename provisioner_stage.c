@@ -108,7 +108,7 @@ void provisioner_stage_init(struct bt_mesh_model* model){
 	return;
 }
 
-static void provisioner_configure_node(struct bt_mesh_cdb_node *node)
+static int provisioner_configure_node(struct bt_mesh_cdb_node *node)
 {
 	NET_BUF_SIMPLE_DEFINE(buf, BT_MESH_RX_SDU_MAX);
 	struct bt_mesh_comp_p0_elem elem;
@@ -123,20 +123,20 @@ static void provisioner_configure_node(struct bt_mesh_cdb_node *node)
 	key = bt_mesh_cdb_app_key_get(app_idx);
 	if (key == NULL) {
 		printk("No app-key 0x%04x\n", app_idx);
-		return;
+		return err;
 	}
 
 	err = bt_mesh_cdb_app_key_export(key, 0, app_key);
 	if (err) {
 		printk("Failed to export appkey from cdb. Err:%d\n", err);
-		return;
+		return err;
 	}
 
 	/* Add Application Key */
-	err = bt_mesh_cfg_cli_app_key_add(net_idx, node->addr, net_idx, app_idx, app_key, &status);
+	while((err = bt_mesh_cfg_cli_app_key_add(net_idx, node->addr, net_idx, app_idx, app_key, &status)) == -EBUSY){k_sleep(K_MSEC(100));}
 	if (err || status) {
 		printk("Failed to add app-key (err %d status %d)\n", err, status);
-		return;
+		return err;
 	}
 
 	/* Get the node's composition data and bind all models to the appkey */
@@ -144,13 +144,13 @@ static void provisioner_configure_node(struct bt_mesh_cdb_node *node)
 	if (err || status) {
 		printk("Failed to get Composition data (err %d, status: %d)\n",
 		       err, status);
-		return;
+		return err;
 	}
 
 	err = bt_mesh_comp_p0_get(&comp, &buf);
 	if (err) {
 		printk("Unable to parse composition data (err: %d)\n", err);
-		return;
+		return err;
 	}
 
 	elem_addr = node->addr;
@@ -206,25 +206,29 @@ static void provisioner_configure_node(struct bt_mesh_cdb_node *node)
 	}
 
 	printk("Configuration complete\n");
+	return 0;
 }
 
 
 static uint8_t provisioner_check_unconfigured(struct bt_mesh_cdb_node *node, void *data)
 {
 	if (!atomic_test_bit(node->flags, BT_MESH_CDB_NODE_CONFIGURED)) {
-		provisioner_configure_node(node);
-	
-		bt_mesh_prov_helper_cli_send_nodeinfo(prov_helper_cli_model, node, initial_provisioner_address);
+		if(provisioner_configure_node(node) == 0){
 
-		while(bt_mesh_prov_helper_cli_send_appkey(prov_helper_cli_model, primary_app_key, node->addr) == -EBUSY){k_sleep(K_MSEC(100));};
+			printk("Flags sending %d for node 0x%04X\n", *((uint32_t*)node->flags), node->addr);
+
+			bt_mesh_prov_helper_cli_send_nodeinfo(prov_helper_cli_model, node, initial_provisioner_address);
+
+			while(bt_mesh_prov_helper_cli_send_appkey(prov_helper_cli_model, primary_app_key, node->addr) == -EBUSY){k_sleep(K_MSEC(100));};
 		
-		while(bt_mesh_prov_helper_cli_send_netkey(prov_helper_cli_model, primary_net_key, node->addr) == -EBUSY){k_sleep(K_MSEC(100));};
+			while(bt_mesh_prov_helper_cli_send_netkey(prov_helper_cli_model, primary_net_key, node->addr) == -EBUSY){k_sleep(K_MSEC(100));};
 
-		struct bt_mesh_cdb_node* newnode = bt_mesh_cdb_node_get(node_addr);
+			struct bt_mesh_cdb_node* newnode = bt_mesh_cdb_node_get(node_addr);
 
-		printk("New node has %d elements\n", newnode->num_elem);
+			printk("New node has %d elements\n", newnode->num_elem);
 
-		current_node_address += newnode->num_elem;
+			current_node_address += newnode->num_elem;
+		}
 	}
 
 	return BT_MESH_CDB_ITER_CONTINUE;
@@ -273,7 +277,7 @@ int provisioner_search_for_unprovisioned_devices(){
 		}
 
 		printk("Waiting for node to be added...\n");
-		err = k_sem_take(&sem_node_added, K_SECONDS(10));
+		err = k_sem_take(&sem_node_added, K_SECONDS(1));
 		if (err == -EAGAIN) {
 			printk("Timeout waiting for node to be added\n");
 			continue;
