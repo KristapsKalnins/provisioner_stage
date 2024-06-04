@@ -2,6 +2,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/bluetooth/mesh.h>
 #include <zephyr/bluetooth/mesh/access.h>
+#include <zephyr/drivers/gpio.h>
 #include "prov_helper_cli.h"
 #include "prov_helper_srv.h"
 
@@ -21,6 +22,8 @@ static uint16_t provisioning_address_range_start = 0x0;
 static uint16_t provisioning_address_range_end = 0x0;
 uint16_t current_node_address = 0;
 
+#define LED0_NODE DT_ALIAS(led0)
+static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 
 K_SEM_DEFINE(sem_unprov_beacon, 0, 1);
 K_SEM_DEFINE(sem_node_added, 0, 1);
@@ -51,6 +54,10 @@ void provisioner_create_cdb_with_net_key(struct bt_mesh_prov_helper_srv* srv, st
 	LOG_INF("CDB created with code %d",err);
 
 	k_sem_give(&sem_provisioner_net_key_received);
+
+#if DT_NODE_EXISTS(DT_ALIAS(led0))
+	int ret = gpio_pin_set_dt(&led, 1);
+#endif
 
 	return;
 }
