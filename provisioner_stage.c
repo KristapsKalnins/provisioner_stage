@@ -21,6 +21,8 @@ static uint16_t initial_provisioner_address = 0x0;
 static uint16_t provisioning_address_range_start = 0x0;
 static uint16_t provisioning_address_range_end = 0x0;
 uint16_t current_node_address = 0;
+static uint8_t provisioned_node_count = 0;
+static uint8_t configured_node_count = 0;
 
 #define LED0_NODE DT_ALIAS(led0)
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
@@ -74,13 +76,13 @@ void provisioner_configure_cdb_with_app_key(struct bt_mesh_prov_helper_srv* srv,
 	// provisioner
 	key = bt_mesh_cdb_app_key_alloc(BT_MESH_NET_PRIMARY, 0);
 	if (key == NULL) {
-		printk("Failed to allocate app-key 0x%04x\n", 0);
+		LOG_INF("Failed to allocate app-key 0x%04x\n", 0);
 		return;
 	}
 
 	err = bt_mesh_cdb_app_key_import(key, 0, buf->data);
 	if (err) {
-		printk("Failed to import appkey into cdb. Err:%d\n", err);
+		LOG_INF("Failed to import appkey into cdb. Err:%d\n", err);
 		return;
 	}
 
@@ -125,44 +127,44 @@ static int provisioner_configure_node(struct bt_mesh_cdb_node *node)
 	uint8_t status;
 	int err, elem_addr;
 
-	printk("Configuring node 0x%04x...\n", node->addr);
+	LOG_INF("Configuring node 0x%04x...\n", node->addr);
 
 	key = bt_mesh_cdb_app_key_get(app_idx);
 	if (key == NULL) {
-		printk("No app-key 0x%04x\n", app_idx);
+		LOG_INF("No app-key 0x%04x\n", app_idx);
 		return err;
 	}
 
 	err = bt_mesh_cdb_app_key_export(key, 0, app_key);
 	if (err) {
-		printk("Failed to export appkey from cdb. Err:%d\n", err);
+		LOG_INF("Failed to export appkey from cdb. Err:%d\n", err);
 		return err;
 	}
 
 	/* Add Application Key */
 	while((err = bt_mesh_cfg_cli_app_key_add(net_idx, node->addr, net_idx, app_idx, app_key, &status)) == -EBUSY){k_sleep(K_MSEC(100));}
 	if (err || status) {
-		printk("Failed to add app-key (err %d status %d)\n", err, status);
+		LOG_INF("Failed to add app-key (err %d status %d)\n", err, status);
 		return err;
 	}
 
 	/* Get the node's composition data and bind all models to the appkey */
 	err = bt_mesh_cfg_cli_comp_data_get(net_idx, node->addr, 0, &status, &buf);
 	if (err || status) {
-		printk("Failed to get Composition data (err %d, status: %d)\n",
+		LOG_INF("Failed to get Composition data (err %d, status: %d)\n",
 		       err, status);
 		return err;
 	}
 
 	err = bt_mesh_comp_p0_get(&comp, &buf);
 	if (err) {
-		printk("Unable to parse composition data (err: %d)\n", err);
+		LOG_INF("Unable to parse composition data (err: %d)\n", err);
 		return err;
 	}
 
 	elem_addr = node->addr;
 	while (bt_mesh_comp_p0_elem_pull(&comp, &elem)) {
-		printk("Element @ 0x%04x: %u + %u models\n", elem_addr,
+		LOG_INF("Element @ 0x%04x: %u + %u models\n", elem_addr,
 		       elem.nsig, elem.nvnd);
 		for (int i = 0; i < elem.nsig; i++) {
 			uint16_t id = bt_mesh_comp_p0_elem_mod(&elem, i);
@@ -175,13 +177,13 @@ static int provisioner_configure_node(struct bt_mesh_cdb_node *node)
 			//	id != BT_MESH_MODEL_ID_BLOB_SRV))) {
 			//	continue;
 			//}
-			printk("Binding AppKey to model 0x%03x:%04x\n",
+			LOG_INF("Binding AppKey to model 0x%03x:%04x\n",
 			       elem_addr, id);
 
 			err = bt_mesh_cfg_cli_mod_app_bind(net_idx, node->addr, elem_addr, app_idx,
 							   id, &status);
 			if (err || status) {
-				printk("Failed (err: %d, status: %d)\n", err,
+				LOG_INF("Failed (err: %d, status: %d)\n", err,
 				       status);
 			}
 
@@ -192,13 +194,13 @@ static int provisioner_configure_node(struct bt_mesh_cdb_node *node)
 			struct bt_mesh_mod_id_vnd id =
 				bt_mesh_comp_p0_elem_mod_vnd(&elem, i);
 
-			printk("Binding AppKey to model 0x%03x:%04x:%04x\n",
+			LOG_INF("Binding AppKey to model 0x%03x:%04x:%04x\n",
 			       elem_addr, id.company, id.id);
 
 			err = bt_mesh_cfg_cli_mod_app_bind_vnd(net_idx, node->addr, elem_addr,
 							       app_idx, id.id, id.company, &status);
 			if (err || status) {
-				printk("Failed (err: %d, status: %d)\n", err,
+				LOG_INF("Failed (err: %d, status: %d)\n", err,
 				       status);
 			}
 		}
@@ -212,7 +214,7 @@ static int provisioner_configure_node(struct bt_mesh_cdb_node *node)
 		bt_mesh_cdb_node_store(node);
 	}
 
-	printk("Configuration complete\n");
+	LOG_INF("Configuration complete\n");
 	return 0;
 }
 
@@ -222,7 +224,7 @@ static uint8_t provisioner_check_unconfigured(struct bt_mesh_cdb_node *node, voi
 	if (!atomic_test_bit(node->flags, BT_MESH_CDB_NODE_CONFIGURED)) {
 		if(provisioner_configure_node(node) == 0){
 
-			printk("Flags sending %d for node 0x%04X\n", *((uint32_t*)node->flags), node->addr);
+			LOG_INF("Flags sending %d for node 0x%04X\n", *((uint32_t*)node->flags), node->addr);
 
 			bt_mesh_prov_helper_cli_send_nodeinfo(prov_helper_cli_model, node, initial_provisioner_address);
 
@@ -232,7 +234,9 @@ static uint8_t provisioner_check_unconfigured(struct bt_mesh_cdb_node *node, voi
 
 			struct bt_mesh_cdb_node* newnode = bt_mesh_cdb_node_get(node_addr);
 
-			printk("New node has %d elements\n", newnode->num_elem);
+			LOG_INF("New node has %d elements\n", newnode->num_elem);
+
+			configured_node_count++;
 
 			current_node_address += newnode->num_elem;
 		}
@@ -249,7 +253,7 @@ int provisioner_search_for_unprovisioned_devices(){
 	k_sem_take(&sem_provisioner_app_key_received, K_FOREVER);
 	k_sem_take(&sem_provisioner_net_key_received, K_FOREVER);
 	k_sem_take(&sem_provisioner_addr_info_received, K_FOREVER);
-	printk("Starting provisioner stage");
+	LOG_INF("Starting provisioner stage");
 
 	int addr_idx = 0;
 	static uint16_t provisioned_node_addrs[16];
@@ -258,14 +262,20 @@ int provisioner_search_for_unprovisioned_devices(){
 	current_node_address = provisioning_address_range_start;
 
 	int64_t start_time_s = k_uptime_get()/1000;
-	while(((k_uptime_get()/1000) - start_time_s) < 60){
+	while((((k_uptime_get()/1000) - start_time_s) < 45)){
 		k_sem_reset(&sem_unprov_beacon);
 		k_sem_reset(&sem_node_added);
 		bt_mesh_cdb_node_foreach(provisioner_check_unconfigured, NULL);
-	
+
+		if(configured_node_count >= 2){break;}
+		if(provisioned_node_count >= 2){
+			LOG_INF("Provisioned two nodes, configuring");
+			continue;
+		}
+
 		if (current_node_address == provisioning_address_range_end){break;}
 		
-		printk("Waiting for unprovisioned beacon...\n");
+		LOG_INF("Waiting for unprovisioned beacon...\n");
 		int err = k_sem_take(&sem_unprov_beacon, K_SECONDS(10));
 		if (err == -EAGAIN) {
 			continue;
@@ -275,23 +285,25 @@ int provisioner_search_for_unprovisioned_devices(){
 
 		bin2hex(node_uuid, 16, uuid_hex_str, sizeof(uuid_hex_str));
 
-		printk("Provisioning %s\n", uuid_hex_str);
+		LOG_INF("Provisioning %s\n", uuid_hex_str);
 		// Next one has to be self + element count
 		err = bt_mesh_provision_adv(node_uuid, 0, current_node_address, 0);
 		if (err < 0) {
-			printk("Provisioning failed (err %d)\n", err);
+			LOG_INF("Provisioning failed (err %d)\n", err);
 			continue;
 		}
 
-		printk("Waiting for node to be added...\n");
+		LOG_INF("Waiting for node to be added...\n");
 		err = k_sem_take(&sem_node_added, K_SECONDS(1));
 		if (err == -EAGAIN) {
-			printk("Timeout waiting for node to be added\n");
+			LOG_INF("Timeout waiting for node to be added\n");
 			continue;
 		}
 
-		printk("Added node 0x%04x\n", node_addr);
-		
+		LOG_INF("Added node 0x%04x\n", node_addr);
+
+		provisioned_node_count++;
+
 		provisioned_node_addrs[addr_idx] = node_addr;
 
 		addr_idx++;
