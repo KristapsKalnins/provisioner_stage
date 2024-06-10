@@ -26,6 +26,13 @@ static uint8_t configured_node_count = 0;
 
 #define LED0_NODE DT_ALIAS(led0)
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
+#define LED1_NODE DT_ALIAS(led1_blue)
+static const struct gpio_dt_spec led_blue = GPIO_DT_SPEC_GET(LED1_NODE, gpios);
+#define LED2_NODE DT_ALIAS(led1_green)
+static const struct gpio_dt_spec led_green = GPIO_DT_SPEC_GET(LED2_NODE, gpios);
+#define LED3_NODE DT_ALIAS(led1_red)
+static const struct gpio_dt_spec led_red = GPIO_DT_SPEC_GET(LED3_NODE, gpios);
+
 
 K_SEM_DEFINE(sem_unprov_beacon, 0, 1);
 K_SEM_DEFINE(sem_node_added, 0, 1);
@@ -57,10 +64,17 @@ void provisioner_create_cdb_with_net_key(struct bt_mesh_prov_helper_srv* srv, st
 
 	k_sem_give(&sem_provisioner_net_key_received);
 
-#if DT_NODE_EXISTS(DT_ALIAS(led0))
-	int ret = gpio_pin_set_dt(&led, 1);
-#endif
+	int ret = 0;
 
+#if DT_NODE_EXISTS(DT_ALIAS(led1_blue))
+	ret = gpio_pin_set_dt(&led_blue, 1);
+#endif
+#if DT_NODE_EXISTS(DT_ALIAS(led1_green))
+	ret = gpio_pin_set_dt(&led_green, 1);
+#endif
+#if DT_NODE_EXISTS(DT_ALIAS(led1_red))
+	ret = gpio_pin_set_dt(&led_red, 1);
+#endif
 	return;
 }
 
@@ -262,7 +276,7 @@ int provisioner_search_for_unprovisioned_devices(){
 	current_node_address = provisioning_address_range_start;
 
 	int64_t start_time_s = k_uptime_get()/1000;
-	while((((k_uptime_get()/1000) - start_time_s) < 45)){
+	while((((k_uptime_get()/1000) - start_time_s) < 60)){
 		k_sem_reset(&sem_unprov_beacon);
 		k_sem_reset(&sem_node_added);
 		bt_mesh_cdb_node_foreach(provisioner_check_unconfigured, NULL);
