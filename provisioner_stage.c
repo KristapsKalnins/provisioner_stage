@@ -65,16 +65,18 @@ void provisioner_create_cdb_with_net_key(struct bt_mesh_prov_helper_srv* srv, st
 	k_sem_give(&sem_provisioner_net_key_received);
 
 	int ret = 0;
-
+#if defined(CONFIG_BT_MESH_ONOFF_CLI)
 #if DT_NODE_EXISTS(DT_ALIAS(led1_blue))
 	ret = gpio_pin_set_dt(&led_blue, 1);
 #endif
+#endif
+
+#if defined(CONFIG_BT_MESH_ONOFF_SRV)
 #if DT_NODE_EXISTS(DT_ALIAS(led1_green))
 	ret = gpio_pin_set_dt(&led_green, 1);
 #endif
-#if DT_NODE_EXISTS(DT_ALIAS(led1_red))
-	ret = gpio_pin_set_dt(&led_red, 1);
 #endif
+
 	return;
 }
 
