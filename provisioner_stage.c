@@ -26,13 +26,30 @@ static uint8_t configured_node_count = 0;
 
 #define LED0_NODE DT_ALIAS(led0)
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
+
+#if DT_NODE_EXISTS(DT_ALIAS(led1_blue))
 #define LED1_NODE DT_ALIAS(led1_blue)
 static const struct gpio_dt_spec led_blue = GPIO_DT_SPEC_GET(LED1_NODE, gpios);
+#else
+#define LED1_NODE DT_ALIAS(led1)
+static const struct gpio_dt_spec led_blue = GPIO_DT_SPEC_GET(LED1_NODE, gpios);
+#endif
+
+#if DT_NODE_EXISTS(DT_ALIAS(led1_green))
 #define LED2_NODE DT_ALIAS(led1_green)
 static const struct gpio_dt_spec led_green = GPIO_DT_SPEC_GET(LED2_NODE, gpios);
+#else
+#define LED2_NODE DT_ALIAS(led2)
+static const struct gpio_dt_spec led_green = GPIO_DT_SPEC_GET(LED2_NODE, gpios);
+#endif
+
+#if DT_NODE_EXISTS(DT_ALIAS(led1_red))
 #define LED3_NODE DT_ALIAS(led1_red)
 static const struct gpio_dt_spec led_red = GPIO_DT_SPEC_GET(LED3_NODE, gpios);
-
+#else
+#define LED3_NODE DT_ALIAS(led3)
+static const struct gpio_dt_spec led_red = GPIO_DT_SPEC_GET(LED3_NODE, gpios);
+#endif
 
 K_SEM_DEFINE(sem_unprov_beacon, 0, 1);
 K_SEM_DEFINE(sem_node_added, 0, 1);
