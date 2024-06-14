@@ -290,27 +290,52 @@ static uint8_t provisioner_check_unconfigured(struct bt_mesh_cdb_node *node, voi
 	return BT_MESH_CDB_ITER_CONTINUE;
 }
 
+int provisioner_prepare_and_forward_data_to_next_devices(int addr_idx, uint16_t* provisioned_node_addrs){
 
-int provisioner_search_for_unprovisioned_devices(){
-    // This semaphore is posted after this node
-	// receives the app key and net key from the
-	// previous node
-	while(k_sem_take(&sem_provisioner_app_key_received, K_SECONDS(1)) != 0){
-		if (bt_mesh_is_provisioned()){
-			provisioner_led_on();
+	if (!addr_idx){
+		return 0;
+	}
+
+	uint16_t remaining_address_count = provisioning_address_range_end - current_node_address;	
+
+	if (!remaining_address_count){
+		return 0;
+	}
+	
+	uint16_t addresses_per_next_provisioner = remaining_address_count / addr_idx;
+	
+	if(addresses_per_next_provisioner == 0){
+		addresses_per_next_provisioner = 1;
+	} 
+
+	for(int i = 0; i < addr_idx; i++){
+		
+		uint16_t start_addr = current_node_address + (addresses_per_next_provisioner * i);
+		uint16_t end_addr = start_addr + addresses_per_next_provisioner;
+
+		remaining_address_count -= addresses_per_next_provisioner;
+
+		LOG_INF("Sending 0x%04X -> 0x%04X with 0x%04X origin to 0x%04X", start_addr, end_addr,
+																		  initial_provisioner_address,
+																		  provisioned_node_addrs[i]);
+		
+		bt_mesh_prov_helper_cli_send_addrinfo(prov_helper_cli_model, start_addr,end_addr,
+											  initial_provisioner_address, provisioned_node_addrs[i]
+											  ,devices_to_provision, time_to_provision_for);
+	
+		if(remaining_address_count <= 0){
+			break;
 		}
-	};
-	k_sem_take(&sem_provisioner_net_key_received, K_FOREVER);
-	k_sem_take(&sem_provisioner_addr_info_received, K_FOREVER);
-	LOG_INF("Starting provisioner stage");
+	}
+	return 0;
+}
 
+
+int provisioning_loop(int64_t start_time_s){
+	static bool finished = false;
+	if(finished){return 0;}
 	int addr_idx = 0;
 	static uint16_t provisioned_node_addrs[16];
-
-	// Fix this part - the address is wrong
-	current_node_address = provisioning_address_range_start;
-
-	int64_t start_time_s = k_uptime_get()/1000;
 	while((((k_uptime_get()/1000) - start_time_s) < time_to_provision_for)){
 		k_sem_reset(&sem_unprov_beacon);
 		k_sem_reset(&sem_node_added);
@@ -357,42 +382,37 @@ int provisioner_search_for_unprovisioned_devices(){
 
 		addr_idx++;
 	}
+	provisioner_prepare_and_forward_data_to_next_devices(addr_idx, provisioned_node_addrs);
+	finished = true;
+	return 0;
+}
 
-	if (!addr_idx){
-		return 0;
-	}
-
-	uint16_t remaining_address_count = provisioning_address_range_end - current_node_address;	
-
-	if (!remaining_address_count){
-		return 0;
-	}
-	
-	uint16_t addresses_per_next_provisioner = remaining_address_count / addr_idx;
-	
-	if(addresses_per_next_provisioner == 0){
-		addresses_per_next_provisioner = 1;
-	} 
-
-	for(int i = 0; i < addr_idx; i++){
-		
-		uint16_t start_addr = current_node_address + (addresses_per_next_provisioner * i);
-		uint16_t end_addr = start_addr + addresses_per_next_provisioner;
-
-		remaining_address_count -= addresses_per_next_provisioner;
-
-		LOG_INF("Sending 0x%04X -> 0x%04X with 0x%04X origin to 0x%04X", start_addr, end_addr,
-																		  initial_provisioner_address,
-																		  provisioned_node_addrs[i]);
-		
-		bt_mesh_prov_helper_cli_send_addrinfo(prov_helper_cli_model, start_addr,end_addr,
-											  initial_provisioner_address, provisioned_node_addrs[i]
-											  ,devices_to_provision, time_to_provision_for);
-	
-		if(remaining_address_count <= 0){
-			break;
+int provisioner_search_for_unprovisioned_devices(){
+    // This semaphore is posted after this node
+	// receives the app key and net key from the
+	// previous node
+	while(k_sem_take(&sem_provisioner_app_key_received, K_SECONDS(1)) != 0){
+		if (bt_mesh_is_provisioned()){
+			provisioner_led_on();
 		}
-	} 
+	};
+	k_sem_take(&sem_provisioner_net_key_received, K_FOREVER);
+	k_sem_take(&sem_provisioner_addr_info_received, K_FOREVER);
+	LOG_INF("Starting provisioner stage");
+
+	
+
+	// Fix this part - the address is wrong
+	current_node_address = provisioning_address_range_start;
+
+	int64_t start_time_s = k_uptime_get()/1000;
+	while(1){
+		bt_mesh_cdb_node_foreach(provisioner_check_unconfigured, NULL);
+		provisioning_loop(start_time_s);
+		k_sleep(K_SECONDS(1));
+	}	
+	
+	
 	return 0;
 
 }
