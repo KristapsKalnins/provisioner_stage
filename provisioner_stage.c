@@ -23,6 +23,8 @@ static uint16_t provisioning_address_range_end = 0x0;
 uint16_t current_node_address = 0;
 static uint8_t provisioned_node_count = 0;
 static uint8_t configured_node_count = 0;
+static uint8_t devices_to_provision = 0;
+static uint8_t time_to_provision_for = 0;
 
 #define LED0_NODE DT_ALIAS(led0)
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
@@ -134,16 +136,21 @@ void provisioner_configure_cdb_with_app_key(struct bt_mesh_prov_helper_srv* srv,
 		
 }
 
-void provisioner_process_provisioning_address_range(struct bt_mesh_prov_helper_srv* srv, struct bt_mesh_msg_ctx *ctx,
+void provisioner_process_provisioning_info(struct bt_mesh_prov_helper_srv* srv, struct bt_mesh_msg_ctx *ctx,
 		struct net_buf_simple *buf){
 	
 	provisioning_address_range_start = net_buf_simple_pull_le16(buf);
 	provisioning_address_range_end = net_buf_simple_pull_le16(buf);
 	initial_provisioner_address = net_buf_simple_pull_le16(buf);
+	devices_to_provision = net_buf_simple_pull_u8(buf);
+	time_to_provision_for = net_buf_simple_pull_u8(buf);
 
-	LOG_INF("Received range 0x%04X -> 0x%04X with 0x%04X origin",provisioning_address_range_start,
-																 provisioning_address_range_end,
-																 initial_provisioner_address);
+
+	LOG_INF("Received range 0x%04X -> 0x%04X with 0x%04X origin and params %d nodes, %d s timeout",provisioning_address_range_start,
+																 									provisioning_address_range_end,
+																 									initial_provisioner_address,
+																									devices_to_provision,
+																									time_to_provision_for);
 
 	k_sem_give(&sem_provisioner_addr_info_received);
 
@@ -304,13 +311,13 @@ int provisioner_search_for_unprovisioned_devices(){
 	current_node_address = provisioning_address_range_start;
 
 	int64_t start_time_s = k_uptime_get()/1000;
-	while((((k_uptime_get()/1000) - start_time_s) < 60)){
+	while((((k_uptime_get()/1000) - start_time_s) < time_to_provision_for)){
 		k_sem_reset(&sem_unprov_beacon);
 		k_sem_reset(&sem_node_added);
 		bt_mesh_cdb_node_foreach(provisioner_check_unconfigured, NULL);
 
-		if(configured_node_count >= 2){break;}
-		if(provisioned_node_count >= 2){
+		if(configured_node_count >= devices_to_provision){break;}
+		if(provisioned_node_count >= devices_to_provision){
 			LOG_INF("Provisioned two nodes, configuring");
 			continue;
 		}
