@@ -385,7 +385,9 @@ int provisioner_search_for_unprovisioned_devices(){
 																		  initial_provisioner_address,
 																		  provisioned_node_addrs[i]);
 		
-		bt_mesh_prov_helper_cli_send_addrinfo(prov_helper_cli_model, start_addr,end_addr, initial_provisioner_address, provisioned_node_addrs[i]);
+		bt_mesh_prov_helper_cli_send_addrinfo(prov_helper_cli_model, start_addr,end_addr,
+											  initial_provisioner_address, provisioned_node_addrs[i]
+											  ,devices_to_provision, time_to_provision_for);
 	
 		if(remaining_address_count <= 0){
 			break;
