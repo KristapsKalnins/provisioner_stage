@@ -70,13 +70,13 @@ void provisioner_unprovisioned_beacon_callback(uint8_t uuid[16],
 void provisioner_led_on(){
 
 #if defined(CONFIG_BT_MESH_ONOFF_CLI)
-#if DT_NODE_EXISTS(DT_ALIAS(led1_blue))
+#if DT_NODE_EXISTS(LED1_NODE)
 	gpio_pin_set_dt(&led_blue, 1);
 #endif
 #endif
 
 #if defined(CONFIG_BT_MESH_ONOFF_SRV)
-#if DT_NODE_EXISTS(DT_ALIAS(led1_green))
+#if DT_NODE_EXISTS(LED2_NODE)
 	gpio_pin_set_dt(&led_green, 1);
 #endif
 #endif
