@@ -230,6 +230,9 @@ static int provisioner_configure_node(struct bt_mesh_cdb_node *node)
 			if (err || status) {
 				LOG_INF("Failed (err: %d, status: %d)\n", err,
 				       status);
+				if(err != 0){
+					return err;
+				}
 			}
 
 
@@ -247,6 +250,9 @@ static int provisioner_configure_node(struct bt_mesh_cdb_node *node)
 			if (err || status) {
 				LOG_INF("Failed (err: %d, status: %d)\n", err,
 				       status);
+				if(err != 0){
+					return err;
+				}
 			}
 		}
 
