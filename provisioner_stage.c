@@ -89,7 +89,7 @@ void provisioner_node_added_callback(uint16_t idx, uint8_t uuid[16], uint16_t ad
 	k_sem_give(&sem_node_added);
 }
 
-void provisioner_create_cdb_with_net_key(struct bt_mesh_prov_helper_srv* srv, struct bt_mesh_msg_ctx *ctx,
+int provisioner_create_cdb_with_net_key(struct bt_mesh_prov_helper_srv* srv, struct bt_mesh_msg_ctx *ctx,
 		struct net_buf_simple *buf){
 
 	memcpy(primary_net_key, buf->data, 16);
@@ -99,12 +99,11 @@ void provisioner_create_cdb_with_net_key(struct bt_mesh_prov_helper_srv* srv, st
 
 	k_sem_give(&sem_provisioner_net_key_received);
 
-	int ret = 0;
 	provisioner_led_on();
-	return;
+	return err;
 }
 
-void provisioner_configure_cdb_with_app_key(struct bt_mesh_prov_helper_srv* srv, struct bt_mesh_msg_ctx *ctx,
+int provisioner_configure_cdb_with_app_key(struct bt_mesh_prov_helper_srv* srv, struct bt_mesh_msg_ctx *ctx,
 		struct net_buf_simple *buf){
 
 	struct bt_mesh_cdb_app_key *key;
@@ -117,26 +116,22 @@ void provisioner_configure_cdb_with_app_key(struct bt_mesh_prov_helper_srv* srv,
 	key = bt_mesh_cdb_app_key_alloc(BT_MESH_NET_PRIMARY, 0);
 	if (key == NULL) {
 		LOG_INF("Failed to allocate app-key 0x%04x\n", 0);
-		return;
+		return -1;
 	}
 
 	err = bt_mesh_cdb_app_key_import(key, 0, buf->data);
 	if (err) {
 		LOG_INF("Failed to import appkey into cdb. Err:%d\n", err);
-		return;
-	}
-
-	if (IS_ENABLED(CONFIG_BT_SETTINGS)) {
-		bt_mesh_cdb_app_key_store(key);
+		return err;
 	}
 
 	k_sem_give(&sem_provisioner_app_key_received);
 
-	return;
+	return 0;
 		
 }
 
-void provisioner_process_provisioning_info(struct bt_mesh_prov_helper_srv* srv, struct bt_mesh_msg_ctx *ctx,
+int provisioner_process_provisioning_info(struct bt_mesh_prov_helper_srv* srv, struct bt_mesh_msg_ctx *ctx,
 		struct net_buf_simple *buf){
 	
 	provisioning_address_range_start = net_buf_simple_pull_le16(buf);
@@ -154,7 +149,7 @@ void provisioner_process_provisioning_info(struct bt_mesh_prov_helper_srv* srv, 
 
 	k_sem_give(&sem_provisioner_addr_info_received);
 
-	return;
+	return 0;
 }
 
 void provisioner_stage_init(struct bt_mesh_model* model){
@@ -177,7 +172,7 @@ static int provisioner_configure_node(struct bt_mesh_cdb_node *node)
 	key = bt_mesh_cdb_app_key_get(app_idx);
 	if (key == NULL) {
 		LOG_INF("No app-key 0x%04x\n", app_idx);
-		return err;
+		return -1;
 	}
 
 	err = bt_mesh_cdb_app_key_export(key, 0, app_key);
@@ -349,7 +344,7 @@ int provisioning_loop(int64_t start_time_s){
 
 		if(configured_node_count >= devices_to_provision){break;}
 		if(provisioned_node_count >= devices_to_provision){
-			LOG_INF("Provisioned two nodes, configuring");
+			LOG_INF("Provisioned %d nodes, configuring", provisioned_node_count);
 			continue;
 		}
 
@@ -402,7 +397,9 @@ int provisioner_search_for_unprovisioned_devices(){
 			provisioner_led_on();
 		}
 	};
+	LOG_INF("Received APP KEY");
 	k_sem_take(&sem_provisioner_net_key_received, K_FOREVER);
+	LOG_INF("Received NET KEY");
 	k_sem_take(&sem_provisioner_addr_info_received, K_FOREVER);
 	LOG_INF("Starting provisioner stage");
 
