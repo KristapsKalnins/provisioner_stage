@@ -209,14 +209,11 @@ static int provisioner_configure_node(struct bt_mesh_cdb_node *node)
 		for (int i = 0; i < elem.nsig; i++) {
 			uint16_t id = bt_mesh_comp_p0_elem_mod(&elem, i);
 			// Bind the AppKey only to the generic OnOff Server and Client
-			//if ((id == BT_MESH_MODEL_ID_CFG_CLI ||
-			//    id == BT_MESH_MODEL_ID_CFG_SRV || 
-			//	(id != BT_MESH_MODEL_ID_GEN_ONOFF_SRV &&
-			//	id != BT_MESH_MODEL_ID_GEN_ONOFF_CLI) ||
-			//	(id != BT_MESH_MODEL_ID_BLOB_CLI &&
-			//	id != BT_MESH_MODEL_ID_BLOB_SRV))) {
-			//	continue;
-			//}
+			if ((id == BT_MESH_MODEL_ID_CFG_CLI ||
+			    id == BT_MESH_MODEL_ID_CFG_SRV || 
+				id == BT_MESH_MODEL_ID_REMOTE_PROV_SRV)) {
+				continue;
+			}
 			LOG_INF("Binding AppKey to model 0x%03x:%04x\n",
 			       elem_addr, id);
 
@@ -369,7 +366,7 @@ int provisioning_loop(int64_t start_time_s){
 		}
 
 		LOG_INF("Waiting for node to be added...\n");
-		err = k_sem_take(&sem_node_added, K_SECONDS(1));
+		err = k_sem_take(&sem_node_added, K_SECONDS(10));
 		if (err == -EAGAIN) {
 			LOG_INF("Timeout waiting for node to be added\n");
 			continue;
