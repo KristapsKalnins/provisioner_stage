@@ -347,6 +347,7 @@ int provisioning_loop(int64_t start_time_s){
 	while((((k_uptime_get()/1000) - start_time_s) < time_to_provision_for)){
 		k_sem_reset(&sem_unprov_beacon);
 		k_sem_reset(&sem_node_added);
+		provisioner_set_static_oob_value();
 		bt_mesh_cdb_node_foreach(provisioner_check_unconfigured, NULL);
 
 		if(configured_node_count >= devices_to_provision){break;}
@@ -409,7 +410,6 @@ int provisioner_search_for_unprovisioned_devices(){
 	LOG_INF("Received NET KEY");
 	k_sem_take(&sem_provisioner_addr_info_received, K_FOREVER);
 	LOG_INF("Starting provisioner stage");
-	provisioner_set_static_oob_value();
 	
 
 	// Fix this part - the address is wrong
