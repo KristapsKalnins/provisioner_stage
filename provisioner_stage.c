@@ -131,6 +131,16 @@ int provisioner_configure_cdb_with_app_key(struct bt_mesh_prov_helper_srv* srv, 
 		
 }
 
+int provisioner_set_static_oob_value(){	
+	int err;
+
+	if((err = bt_mesh_auth_method_set_static("NL].KffQkz~DR+$2|^hdYethZ`n{'?vF", sizeof("NL].KffQkz~DR+$2|^hdYethZ`n{'?vF") - 1)) == 0){
+		LOG_INF("Static Val set");
+	}else{
+		LOG_INF("Could not set static val %d", err);
+	}
+}
+
 int provisioner_process_provisioning_info(struct bt_mesh_prov_helper_srv* srv, struct bt_mesh_msg_ctx *ctx,
 		struct net_buf_simple *buf){
 	
@@ -399,7 +409,7 @@ int provisioner_search_for_unprovisioned_devices(){
 	LOG_INF("Received NET KEY");
 	k_sem_take(&sem_provisioner_addr_info_received, K_FOREVER);
 	LOG_INF("Starting provisioner stage");
-
+	provisioner_set_static_oob_value();
 	
 
 	// Fix this part - the address is wrong
