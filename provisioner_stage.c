@@ -139,6 +139,8 @@ int provisioner_set_static_oob_value(){
 	}else{
 		LOG_INF("Could not set static val %d", err);
 	}
+
+	return err;
 }
 
 int provisioner_process_provisioning_info(struct bt_mesh_prov_helper_srv* srv, struct bt_mesh_msg_ctx *ctx,
@@ -347,7 +349,6 @@ int provisioning_loop(int64_t start_time_s){
 	while((((k_uptime_get()/1000) - start_time_s) < time_to_provision_for)){
 		k_sem_reset(&sem_unprov_beacon);
 		k_sem_reset(&sem_node_added);
-		provisioner_set_static_oob_value();
 		bt_mesh_cdb_node_foreach(provisioner_check_unconfigured, NULL);
 
 		if(configured_node_count >= devices_to_provision){break;}
@@ -370,6 +371,7 @@ int provisioning_loop(int64_t start_time_s){
 
 		LOG_INF("Provisioning %s\n", uuid_hex_str);
 		// Next one has to be self + element count
+		provisioner_set_static_oob_value();
 		err = bt_mesh_provision_adv(node_uuid, 0, current_node_address, 0);
 		if (err < 0) {
 			LOG_INF("Provisioning failed (err %d)\n", err);
