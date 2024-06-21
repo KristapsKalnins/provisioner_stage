@@ -279,14 +279,29 @@ static uint8_t provisioner_check_unconfigured(struct bt_mesh_cdb_node *node, voi
 	if (!atomic_test_bit(node->flags, BT_MESH_CDB_NODE_CONFIGURED)) {
 		if(provisioner_configure_node(node) == 0){
 
-			LOG_INF("Flags sending %d for node 0x%04X\n", *((uint32_t*)node->flags), node->addr);
+			LOG_INF("Flags sending %d for node 0x%04X", *((uint32_t*)node->flags), node->addr);
 
-			bt_mesh_prov_helper_cli_send_nodeinfo(prov_helper_cli_model, node, initial_provisioner_address);
+			int ret = 0;
 
-			while(bt_mesh_prov_helper_cli_send_appkey(prov_helper_cli_model, primary_app_key, node->addr) == -EBUSY){k_sleep(K_MSEC(100));};
-		
-			while(bt_mesh_prov_helper_cli_send_netkey(prov_helper_cli_model, primary_net_key, node->addr) == -EBUSY){k_sleep(K_MSEC(100));};
-
+			do{
+				ret = bt_mesh_prov_helper_cli_send_nodeinfo(prov_helper_cli_model, node, initial_provisioner_address);
+				LOG_INF("Got nodeinfo %d", ret);
+				k_sleep(K_MSEC(100));
+			}
+			while(ret == -ETIMEDOUT || ret == -EBUSY);
+			
+			do{
+				ret = bt_mesh_prov_helper_cli_send_appkey(prov_helper_cli_model, primary_app_key, node->addr);
+				k_sleep(K_MSEC(100));
+				LOG_INF("Got appkey %d", ret);
+			}
+			while(ret == -ETIMEDOUT || ret == -EBUSY);
+			
+			do{
+				ret = bt_mesh_prov_helper_cli_send_netkey(prov_helper_cli_model, primary_net_key, node->addr);
+				LOG_INF("Got netkey %d", ret);
+				k_sleep(K_MSEC(100));
+			}while(ret == -ETIMEDOUT || ret == -EBUSY);
 			struct bt_mesh_cdb_node* newnode = bt_mesh_cdb_node_get(node_addr);
 
 			LOG_INF("New node has %d elements\n", newnode->num_elem);
