@@ -86,6 +86,8 @@ void provisioner_led_on(){
 void provisioner_node_added_callback(uint16_t idx, uint8_t uuid[16], uint16_t addr, uint8_t num_elem)
 {
 	node_addr = addr;
+	struct bt_mesh_cdb_node* newnode = bt_mesh_cdb_node_get(node_addr);
+	current_node_address += newnode->num_elem;
 	k_sem_give(&sem_node_added);
 }
 
@@ -180,6 +182,7 @@ static int provisioner_configure_node(struct bt_mesh_cdb_node *node)
 	int err, elem_addr;
 
 	LOG_INF("Configuring node 0x%04x...\n", node->addr);
+	LOG_INF("Node num of elements %d...\n", node->num_elem);
 
 	key = bt_mesh_cdb_app_key_get(app_idx);
 	if (key == NULL) {
@@ -308,7 +311,6 @@ static uint8_t provisioner_check_unconfigured(struct bt_mesh_cdb_node *node, voi
 
 			configured_node_count++;
 
-			current_node_address += newnode->num_elem;
 		}
 	}
 
