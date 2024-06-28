@@ -332,8 +332,8 @@ int provisioner_prepare_and_forward_data_to_next_devices(int addr_idx, uint16_t*
 	if (!addr_idx){
 		return 0;
 	}
-
-	current_node_address = provisioning_address_range_start + elements_in_provisioned_devices;
+	// The (2*4) is an absolutely diabolical fix 😈
+	current_node_address = provisioning_address_range_start + elements_in_provisioned_devices + (2 * 4);
 
 	uint16_t remaining_address_count = provisioning_address_range_end - current_node_address;	
 
@@ -403,13 +403,16 @@ int provisioning_loop(int64_t start_time_s){
 		// Next one has to be self + element count
 		provisioner_set_static_oob_value();
 		err = bt_mesh_provision_adv(node_uuid, 0, current_node_address, 0);
-		if (err < 0) {
+		if (err == -16) {
+			LOG_INF("Busy, waiting for node");
+		}
+		else if (err < 0){
 			LOG_INF("Provisioning failed (err %d)", err);
 			continue;
 		}
 
 		LOG_INF("Waiting for node to be added...");
-		err = k_sem_take(&sem_node_added, K_FOREVER/*K_SECONDS(10)*/);
+		err = k_sem_take(&sem_node_added, K_SECONDS(10));
 		if (err == -EAGAIN) {
 			LOG_INF("Timeout waiting for node to be added");
 			continue;
